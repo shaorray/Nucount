@@ -20,7 +20,7 @@ Rscript Nucount_script.R -h
 
 ## Example
 
-You can test `Nucount` with [examples](https://github.com/shaorray/Nucount/example).
+You can test `Nucount` with the [example](https://github.com/shaorray/Nucount/example).
 
 ```
 #!/bin/bash -l
