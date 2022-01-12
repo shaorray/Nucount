@@ -16,7 +16,7 @@ See help message:
 Rscript Nucount_script.R -h
 ```
 
-<img src="man/figures/steps.png" align="right" alt="" width="500" />
+<img src="man/figures/steps.png" align="right" alt="" width="520" />
 
 ## Example
 
