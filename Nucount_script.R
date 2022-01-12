@@ -104,7 +104,9 @@ if (!file.exists("Nucount_output"))
   dir.create("Nucount_output")
 
 # ----------------------------------------------- functions ---------------------------------------------------- #
-prob_den_fun <-  function(x) exp(-(x / 20)^2 / 280) # initialize with a normal distribution with mean = 0, sd = 20
+
+# initialize with a normal distribution with mean = 0, sd = 20
+prob_den_fun <-  function(x) exp(-(x / 20)^2 / 280) # function (0)
 
 bam_nucelsome_reads <- function(bam_file, is_paired_end = T, nuc_pos_gr, tss_gr) {
   # function (1)
@@ -204,7 +206,8 @@ attribute_read_to_nucleosome <- function(tss_tmp, srg_tmp, tmp_nuc, is_paired_en
                  x_nuc_prob
                }
         )
-    } else { # single-end reads must towards their dedicated nucleosomes
+    } else {
+      # single-end reads must towards their dedicated nucleosomes
       tmp_nuc_prob = 
         sapply(seq_along(tmp_nuc_ranges), 
                function(x) {
@@ -248,7 +251,11 @@ iterate_pdf <- function(gene_ids, tss_gr, nuc_pos_gr, srg, is_paired_end, nuc_nu
     .strand = as.character(strand(tss_tmp))
     .start = start(tss_tmp)
     
-    tmp_attribution = attribute_read_to_nucleosome(tss_tmp, srg_tmp, tmp_nuc, is_paired_end, prob_den_fun)
+    tmp_attribution = attribute_read_to_nucleosome(tss_tmp, 
+                                                   srg_tmp,
+                                                   tmp_nuc, 
+                                                   is_paired_end,
+                                                   prob_den_fun)
     
     # relative position between reads and nucleosome
     delta_pos = with(srg_tmp, pos + ifelse(strand == "+", 0, qwidth)) - start(sort(tmp_nuc))[tmp_attribution]
@@ -272,7 +279,7 @@ get_nucelsome_count <- function(bam_file,            # bam file input
                                 nuc_num,             # the number of nucleosomes to use, so symmetric outputs = nuc_num * 2  
                                 tss_gr,              # saved TSS GRanges
                                 is_EM = F,           # if update probability density function
-                                iter_num = 2      # number of EM iteration
+                                iter_num = 2         # number of EM iterations, pdf could fluctuate depending on ChIP type, manually pick a small number
                                 ) {
 
   tss_gr = tss_gr[tss_gr$gene_id %in% nuc_pos_gr$gene_id]
@@ -291,29 +298,32 @@ get_nucelsome_count <- function(bam_file,            # bam file input
       message("\n[2] Updating probability density function.")
     
     # record changes
-    iter_records = data.frame(position = (-1000) : 1000,
-                              probability = prob_den_fun((-1000) : 1000) / sum(prob_den_fun((-1000) : 1000)),
+    positions = (-1000) : 1000
+    iter_records = data.frame(position = positions,
+                              probability = prob_den_fun(positions) / sum(prob_den_fun(positions)),
                               iteration = 0)
     for (i in seq_len(iter_num)) {
       gene_ids = sample(tss_gr$gene_id, 2000) # use 2000 genes for PDF update
       prob_den_fun = iterate_pdf(gene_ids, tss_gr, nuc_pos_gr, srg, is_paired_end, nuc_num)
       iter_records = rbind(iter_records,
-                           data.frame(position = (-1000) : 1000,
-                                      probability = prob_den_fun((-1000) : 1000) / sum(prob_den_fun((-1000) : 1000)),
-                                      iteration = rep(i, 2001)))
+                           data.frame(position = positions,
+                                      probability = prob_den_fun(positions) / sum(prob_den_fun(positions)),
+                                      iteration = rep(i, 2001))
+                           )
       if (!is_queitly)
         message(paste("\nIteration loop:", i))
     }
     iter_records$iteration = factor(as.character(iter_records$iteration))
     
+    # print PDF iteration records 
     ggsave(filename = paste0("Nucount_output/PDF_iteration_", out_name, ".png"),
-           plot = ggplot(data = iter_records, aes(x = position, y = probability, color = iteration)) +
+           plot = ggplot(data = iter_records,
+                         aes(x = position, y = probability, color = iteration)) +
              geom_line(lwd = 1) +
              theme_minimal() +
              xlab("Position [bp]") + ylab("Probability") + ggtitle(out_name),
-           device = "png", 
+           device = "png",
            width = 5, height = 4)
-    
     
   } else {
     if (!is_queitly)
@@ -332,13 +342,16 @@ get_nucelsome_count <- function(bam_file,            # bam file input
       # center to TSS interval start
       tmp_nuc = nuc_pos_gr[nuc_pos_gr$gene_id == tss_tmp$gene_id]
       
-      
       srg_tmp = srg[[n]]
       if (length(srg_tmp[[1]]) == 0) return(rep(0, length(tmp_nuc)))
       
       
       # estimate reads to nucleosome, combine unique and multiple reads
-      tmp_attribution = attribute_read_to_nucleosome(tss_tmp, srg_tmp, tmp_nuc, is_paired_end, prob_den_fun)
+      tmp_attribution = attribute_read_to_nucleosome(tss_tmp,
+                                                     srg_tmp, 
+                                                     tmp_nuc, 
+                                                     is_paired_end,
+                                                     prob_den_fun)
       
       tmp_attr_counts = `names<-`(rep(0, length(tmp_nuc)), seq_along(tmp_nuc))
       tmp_read_tbl = table(tmp_attribution)
@@ -356,13 +369,14 @@ get_nucelsome_count <- function(bam_file,            # bam file input
   nuc_pos_gr[as.numeric(gsub("-", "", nuc_pos_gr$nuc_pos)) %in% seq_len(nuc_num)]
 }
 
-# -------------------------------------------------- run ------------------------------------------------------- #
+# ------------------------------------------------- input ------------------------------------------------------ #
 # load pre-processed nucleosome and TSS GRanges 
 
 nuc_fltd_gr <- readRDS(nuc_file)
 nuc_fltd_gr <- GenomicRanges::resize(nuc_fltd_gr, width = 1, fix = "center")
 tss_gr <- readRDS(tss_file)
 
+# run
 count_gr <- get_nucelsome_count(bam_file      = bam_file,
                                 is_paired_end = is_paired_end,
                                 nuc_pos_gr    = nuc_fltd_gr,
@@ -371,15 +385,20 @@ count_gr <- get_nucelsome_count(bam_file      = bam_file,
                                 is_EM         = T,
                                 iter_num      = iter_num)
 
-
 # ------------------------------------------------- output ----------------------------------------------------- #
 # Nucount results
-if (out_type == "table") {
-  write.table(mcols(count_gr), file = paste0("Nucount_output/", out_name, ".txt"),
-              quote = F, sep = "\t", row.names = F, col.names = T)
-} else if (out_type == "bw"){
-  rtracklayer::export.bw(IRanges::coverage(count_gr + 25, weight = as.numeric(count_gr$nuc_read_count)),
-                         con = paste0("Nucount_output/", out_name, ".bw"))
-}
 
+if (out_type == "table") {
+  write.table(mcols(count_gr),
+              file = paste0("Nucount_output/", out_name, ".txt"),
+              quote = F, sep = "\t",
+              row.names = F,
+              col.names = T)
+} else if (out_type == "bw") {
+  rtracklayer::export.bw(
+    IRanges::coverage(count_gr + 25, # 51 bp in coverage width
+                      weight = as.numeric(count_gr$nuc_read_count)),
+    con = paste0("Nucount_output/", out_name, ".bw")
+    )
+}
 
