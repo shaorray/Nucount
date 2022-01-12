@@ -33,7 +33,7 @@ registerDoParallel(cores = 4)
 option_list = list(
   # bam input
   make_option(c("-b", "--bam"), action = "store", default = NULL, type = 'character',
-              help = "Bam file input group 1"),
+              help = "Bam file, single or paired end."),
   make_option(c("-p", "--paired"), action = "store", default = TRUE, type = 'logical',
               help = "Paired-end reads [default %default]"),
   
@@ -82,21 +82,21 @@ is_queitly <- opt$quietly
 
 if (!is_queitly) {
   message("\n----------------------------------------------\n")
-  message(paste("BAM:\n", bam_file, "\n"))
+  message(paste("BAM:\n\n", bam_file, "\n"))
   message("----------------------------------------------\n")
-  message(paste("Is read paired:\n", is_paired_end, "\n"))
+  message(paste("Is read paired:\n\n", is_paired_end, "\n"))
   message("----------------------------------------------\n")
-  message(paste("Nucleosome file:\n", nuc_file, "\n"))
+  message(paste("Nucleosome file:\n\n", nuc_file, "\n"))
   message("----------------------------------------------\n")
-  message(paste("TSS file:\n", tss_file, "\n"))
+  message(paste("TSS file:\n\n", tss_file, "\n"))
   message("----------------------------------------------\n")
-  message(paste("Perform EM:\n", is_EM, "\n"))
+  message(paste("Perform EM:\n\n", is_EM, "\n"))
   message("----------------------------------------------\n")
-  message(paste("EM iteration time:\n", iter_num, "\n"))
+  message(paste("EM iteration time:\n\n", iter_num, "\n"))
   message("----------------------------------------------\n")
-  message(paste("Output name:\n", out_name, "\n"))
+  message(paste("Output name:\n\n", out_name, "\n"))
   message("----------------------------------------------\n")
-  message(paste("Output type:\n", out_type, "\n"))
+  message(paste("Output type:\n\n", out_type, "\n"))
   message("----------------------------------------------\n")
 }
 
