@@ -11,7 +11,7 @@ A nucleosomal reads counting tool
 `optparse`, `dplyr`, `S4Vectors`, `Rsamtools`, `rtracklayer`, `GenomeInfoDb`, `BiocGenerics`, `IRanges`, `foreach`, `doParallel`, `ggplot2`.
 
 ## Inputs
-See help message:
+See the help messages:
 ```
 Rscript Nucount_script.R -h
 ```
