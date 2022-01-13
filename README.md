@@ -3,7 +3,7 @@ A nucleosomal reads counting tool
 
 
 ## About
-`Nucount` is a R tool for estimating ChIP-seq reads from positioned nucleosomes. Adjacent reads will be assigned by Estimation Maximization approach. 
+`Nucount` is a R tool for estimating ChIP-seq reads from positioned nucleosomes. Adjacent reads will be assigned by Expectation Maximization approach. 
 
 
 
