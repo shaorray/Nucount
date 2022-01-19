@@ -17,9 +17,9 @@ suppressMessages(require(Rsamtools, quietly = T))
 suppressMessages(require(rtracklayer, quietly = T))
 
 suppressMessages(require(GenomeInfoDb, quietly = T))
+suppressMessages(require(IRanges, quietly = T))
 suppressMessages(require(GenomicRanges, quietly = T))
 suppressMessages(require(BiocGenerics, quietly = T))
-suppressMessages(require(IRanges, quietly = T))
 
 suppressMessages(require(foreach, quietly = T))
 suppressMessages(require(doParallel, quietly = T))
@@ -60,7 +60,7 @@ option_list = list(
   make_option("--nuc_num", action = "store", default = 10, type = 'integer',
               help = "Number of nucleosomes away from TSS to keep [default %default]"),
   make_option("--type", action = "store", default = "table", type = 'character',
-              help = "Output file format, BW or table [default %default]"),
+              help = "Output file format (BW, table, or matrix) [default %default]"),
   make_option(c("-o", "--out"), action = "store", default = "est_Nucount", type = 'character',
               help = "Output file name"),
   
@@ -91,9 +91,13 @@ is_queitly <- opt$quietly
 
 if (!is_queitly) {
   message("\n----------------------------------------------\n")
+  message(paste("Nucount v1.0: ", date(), "\n"))
+  message("----------------------------------------------\n")
   message(paste("BAM:\n\n", bam_file, "\n"))
   message("----------------------------------------------\n")
   message(paste("Is read paired:\n\n", is_paired_end, "\n"))
+  message("----------------------------------------------\n")
+  message(paste("Sample size factor:\n\n", sample_scale, "\n"))
   message("----------------------------------------------\n")
   message(paste("Nucleosome file:\n\n", nuc_file, "\n"))
   message("----------------------------------------------\n")
@@ -119,9 +123,9 @@ doParallel::registerDoParallel(cores = opt$thread)
 # ----------------------------------------------- functions ---------------------------------------------------- #
 
 # initialize with a normal distribution with mean = 0, sd = 20
-prob_den_fun <<- function(x) exp(-(x / 20)^2 / 280) # function (0)
+prob_den_fun = function(x) exp(-(x / 20)^2 / 280) # function (0)
 
-bam_nucelsome_reads <<- function(bam_file, is_paired_end = T, nuc_pos_gr, tss_gr) {
+bam_nucelsome_reads = function(bam_file, is_paired_end = T, nuc_pos_gr, tss_gr) {
   # function (1)
   
   if (!file.exists(paste0(bam_file,'.bai'))) Rsamtools::indexBam(bam_file)
@@ -157,7 +161,7 @@ bam_nucelsome_reads <<- function(bam_file, is_paired_end = T, nuc_pos_gr, tss_gr
 }
 
 
-attribute_read_to_nucleosome <<- function(tss_tmp, srg_tmp, tmp_nuc, is_paired_end, prob_den_fun) {
+attribute_read_to_nucleosome = function(tss_tmp, srg_tmp, tmp_nuc, is_paired_end, prob_den_fun) {
   # function (2)
   
   .strand = as.character(strand(tss_tmp))
@@ -251,7 +255,7 @@ attribute_read_to_nucleosome <<- function(tss_tmp, srg_tmp, tmp_nuc, is_paired_e
 }
 
 
-iterate_pdf <<- function(gene_ids, tss_gr, nuc_pos_gr, srg, is_paired_end, nuc_num) {
+iterate_pdf = function(gene_ids, tss_gr, nuc_pos_gr, srg, is_paired_end, nuc_num) {
   # function (3)
   
   read_nucleosome_coverage = foreach(gene_id = gene_ids, .combine = "c") %dopar% {
@@ -296,7 +300,7 @@ get_nucelsome_count = function(bam_file,            # bam file input
                                iter_num = 2,        # number of EM iterations, pdf could fluctuate depending on ChIP type, manually pick a small number
                                out_name,            # user defined sample name
                                is_queitly = FALSE   # if show message
-                               ) {
+) {
 
   tss_gr = tss_gr[tss_gr$gene_id %in% nuc_pos_gr$gene_id]
   nuc_pos_gr = nuc_pos_gr[nuc_pos_gr$gene_id %in% tss_gr$gene_id]
@@ -319,11 +323,17 @@ get_nucelsome_count = function(bam_file,            # bam file input
                               probability = prob_den_fun(positions) / sum(prob_den_fun(positions)),
                               iteration = 0)
     for (i in seq_len(iter_num)) {
+      gene_ids = tss_gr$gene_id
       if (length(gene_ids) > 4e3) { # use only 2000 genes for PDF update
         gene_ids = sample(tss_gr$gene_id, 2000, replace = T) 
       }
-      gene_ids = tss_gr$gene_id
-      prob_den_fun <<- iterate_pdf(gene_ids, tss_gr, nuc_pos_gr, srg, is_paired_end, nuc_num)
+      prob_den_fun <<- iterate_pdf(gene_ids      = gene_ids,
+                                   tss_gr        = tss_gr,
+                                   nuc_pos_gr    = nuc_pos_gr,
+                                   srg           = srg, 
+                                   is_paired_end = is_paired_end, 
+                                   nuc_num       = nuc_num)
+      
       iter_records = rbind(iter_records,
                            data.frame(position = positions,
                                       probability = prob_den_fun(positions) / sum(prob_den_fun(positions)),
@@ -352,7 +362,7 @@ get_nucelsome_count = function(bam_file,            # bam file input
   }
   
   # loop through targets
-  nuc_pos_gr$nuc_read_count <- foreach(gene_id = unique(nuc_pos_gr$gene_id),
+  nuc_pos_gr$nuc_read_count = foreach(gene_id = unique(nuc_pos_gr$gene_id),
                                        .combine = "c") %dopar% 
     {
       n = which(tss_gr$gene_id == gene_id)
@@ -454,7 +464,7 @@ column_to_matrix = function(count_gr, tss_gr, nuc_num) {
 # load TSS ranges, from formats {rds, BED, GTF, etc.} 
 
 tss_file_format <- toupper(sapply(strsplit(tss_file, '\\.'), tail, 1))
-if (.format == "RDS") {
+if (tss_file_format %in% c("RDS", "RDATA")) {
   tss_gr <- readRDS(tss_file)
 } else {
   tss_gr <- rtracklayer::import(tss_file, format = tss_file_format)
@@ -484,7 +494,7 @@ count_gr <- get_nucelsome_count(bam_file      = bam_file,
                                 is_paired_end = is_paired_end,
                                 nuc_pos_gr    = nuc_fltd_gr,
                                 nuc_num       = nuc_num,
-                                tss_gr        = tss_gr[1:100],
+                                tss_gr        = tss_gr,
                                 is_EM         = is_EM,
                                 iter_num      = iter_num,
                                 out_name      = out_name,
@@ -511,7 +521,7 @@ if (out_type == "table") {
   write.table(column_to_matrix(count_gr, tss_gr, nuc_num),
               file = paste0("Nucount_output/", out_name, "_mat.txt"),
               quote = F, sep = "\t",
-              row.names = F,
+              row.names = T,
               col.names = T)
 }
 
